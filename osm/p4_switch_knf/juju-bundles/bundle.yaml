@@ -1,0 +1,6 @@
+description: BMv2 Programmer Bundle
+bundle: kubernetes
+applications:
+  bmv2:
+    charm: "./charms/bmv2"
+    scale: 1

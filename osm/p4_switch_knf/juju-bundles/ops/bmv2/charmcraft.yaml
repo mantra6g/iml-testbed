@@ -1,0 +1,162 @@
+# This file configures Charmcraft.
+# See https://documentation.ubuntu.com/charmcraft/stable/reference/files/charmcraft-yaml-file/
+type: charm
+name: bmv2
+title: BMv2 P4-programmable switch
+summary: Compile and run P4 programs on a BMv2 (behavioral-model) software switch.
+description: |
+  A charm that operates a BMv2 (behavioral model v2) software switch and lets you
+  reprogram it, at runtime, with a brand new P4_16 program.
+
+  It uses two sidecar containers: a `p4c` container that compiles P4 source into
+  the JSON configuration BMv2 understands, and a `bmv2` container that runs
+  `simple_switch` against that JSON and is queried/updated live via
+  `simple_switch_CLI` to manage match-action table entries.
+
+  This charm meets the need for quickly iterating on P4 programs and their table
+  entries without redeploying, useful when experimenting with data-plane programs
+  in a testbed.
+
+  Useful for researchers and network engineers running quick P4/BMv2 experiments
+  in an OSM/Kubernetes NFV testbed. This charm is intentionally minimal: it is not
+  meant to be production-ready, only good enough for fast experimentation.
+
+# Documentation:
+# https://documentation.ubuntu.com/charmcraft/stable/howto/build-guides/select-platforms/
+base: ubuntu@24.04
+platforms:
+  amd64:
+  arm64:
+
+assumes:
+  - juju >= 3.6
+  - k8s-api
+
+parts:
+  charm:
+    plugin: uv
+    source: .
+    build-snaps:
+      - astral-uv
+
+# (Optional) Configuration options for the charm
+# This config section defines charm config options, and populates the Configure
+# tab on Charmhub.
+# More information on this section at:
+# https://documentation.ubuntu.com/charmcraft/stable/reference/files/charmcraft-yaml-file/#config
+# General configuration documentation:
+# https://documentation.ubuntu.com/juju/3.6/reference/configuration/#application-configuration
+config:
+  options:
+    thrift-port:
+      description: |
+        Thrift RPC port that simple_switch exposes, and that simple_switch_CLI
+        (used by the table-add/table-delete/table-clear actions) connects to.
+
+        Changing this only takes effect the next time the reprogram action runs.
+      default: 9090
+      type: int
+    interfaces:
+      description: |
+        Comma-separated list of "<port-number>@<iface-name>" pairs passed to
+        simple_switch's -i flag (e.g. "0@veth0,1@veth1").
+
+        Leave empty to run the switch with no data-plane interfaces attached,
+        which is useful when only exercising the control plane (table entries)
+        in a quick experiment. Changing this only takes effect the next time
+        the reprogram action runs.
+      default: ""
+      type: string
+
+# Your workload's containers.
+# https://documentation.ubuntu.com/charmcraft/stable/reference/files/charmcraft-yaml-file/#containers
+containers:
+  p4c:
+    resource: p4c-image
+  bmv2:
+    resource: bmv2-image
+
+# This field populates the Resources tab on Charmhub.
+# https://documentation.ubuntu.com/charmcraft/stable/reference/files/charmcraft-yaml-file/#resources
+resources:
+  # An OCI image resource for each container listed above.
+  p4c-image:
+    type: oci-image
+    description: OCI image containing the p4c compiler (must provide p4c-bm2-ss).
+    # The upstream-source field is ignored by Charmcraft and Juju, but it can be
+    # useful to developers in identifying the source of the OCI image.  It is also
+    # used by the 'canonical/charming-actions' GitHub action for automated releases.
+    # The test_deploy function in tests/integration/test_charm.py reads upstream-source
+    # to determine which OCI image to use when running the charm's integration tests.
+    upstream-source: p4lang/p4c:latest
+  bmv2-image:
+    type: oci-image
+    description: >-
+      OCI image containing the BMv2 (behavioral-model) simple_switch runtime and
+      simple_switch_CLI.
+    upstream-source: p4lang/behavioral-model:stable
+
+actions:
+  reprogram:
+    description: |
+      Compile a new P4 program (via the p4c container) and load it into the
+      running BMv2 switch, replacing whatever program is currently active.
+
+      Restarting simple_switch to apply the new program wipes every
+      previously-installed table entry, since BMv2 only keeps table state in
+      the running process's memory. If compilation fails, the switch that was
+      already running (and its table entries) is left untouched.
+    params:
+      p4-source:
+        type: string
+        description: Full source code of the P4 program (P4_16), as plain text.
+    required: [p4-source]
+    additionalProperties: false
+  table-add:
+    description: |
+      Add a match-action table entry to the currently running P4 program. Fails
+      if no program has been loaded yet (run the reprogram action first).
+    params:
+      table:
+        type: string
+        description: Name of the P4 table, as it appears in the P4 program.
+      action:
+        type: string
+        description: Name of the action to associate with this entry.
+      match:
+        type: string
+        description: Space-separated match key values, in the table's field order.
+      action-params:
+        type: string
+        description: Space-separated action parameter values, in order.
+        default: ""
+      priority:
+        type: integer
+        description: Entry priority (only required for ternary/range match tables).
+    required: [table, action, match]
+    additionalProperties: false
+  table-delete:
+    description: |
+      Delete a single table entry by its handle (the handle returned when the
+      entry was added). Fails if no program has been loaded yet.
+    params:
+      table:
+        type: string
+        description: Name of the P4 table the entry belongs to.
+      handle:
+        type: integer
+        description: Entry handle to delete.
+    required: [table, handle]
+    additionalProperties: false
+  table-clear:
+    description: |
+      Remove every entry from a single table (equivalent to simple_switch_CLI's
+      table_clear). Fails if no program has been loaded yet. Note that
+      reprogramming the switch already clears every table implicitly; use this
+      action to reset one table without reloading the whole program.
+    params:
+      table:
+        type: string
+        description: Name of the P4 table to clear.
+    required: [table]
+    additionalProperties: false

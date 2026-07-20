@@ -1,0 +1,62 @@
+nsd:
+  nsd:
+  - id: p4_iperf_scenario_ns
+    name: p4_iperf_scenario_ns
+    version: 1.0
+    description: "Topology: iperf3-client -> P4-Switch -> iperf3-server"
+    designer: MANTRA6G
+    
+    vnfd-id:
+      - p4_switch_knf
+      - iperf3_knf
+
+    virtual-link-desc:
+    - id: mgmtnet
+      mgmt-network: true
+      vim-network-name: mgmt
+    - id: data-net
+      vim-network-name: data
+
+    df:
+    - id: default-df
+      vnf-profile:
+      - id: client
+        vnfd-id: iperf3_knf
+        virtual-link-connectivity:
+        - virtual-link-profile-id: mgmtnet
+          constituent-cpd-id:
+            - vnf-profile-id: client
+              cpd-id: mgmt-ext
+        - virtual-link-profile-id: link-client-to-switch
+          constituent-cpd-id:
+            - vnf-profile-id: client
+              cpd-id: data-ext
+
+
+      - id: p4-switch
+        vnfd-id: p4_switch_knf
+        virtual-link-connectivity:
+          - virtual-link-profile-id: mgmtnet
+            constituent-cpd-id:
+              - vnf-profile-id: p4-switch
+                cpd-id: mgmt-ext
+          - virtual-link-profile-id: link-client-to-switch
+            constituent-cpd-id:
+              - vnf-profile-id: p4-switch
+                cpd-id: ingress-ext
+          - virtual-link-profile-id: link-switch-to-server
+            constituent-cpd-id:
+              - vnf-profile-id: p4-switch
+                cpd-id: egress-ext
+      
+      - id: server
+        vnfd-id: iperf3_knf
+        virtual-link-connectivity:
+          - virtual-link-profile-id: mgmtnet
+            constituent-cpd-id:
+              - vnf-profile-id: server
+                cpd-id: mgmt-ext
+          - virtual-link-profile-id: link-switch-to-server
+            constituent-cpd-id:
+              - vnf-profile-id: server
+                cpd-id: data-ext

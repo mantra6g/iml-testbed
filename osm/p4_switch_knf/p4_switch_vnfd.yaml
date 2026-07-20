@@ -1,0 +1,45 @@
+vnfd:
+  description: P4 BMv2 switch managed by Juju Charm
+  df:
+  - id: default-df
+    lcm-operations-configuration:
+      operate-vnf-op-config:
+        day1-2:
+          - id: p4-switch-kdu
+            config-primitive:
+            - name: addurl
+              parameter:
+              - data-type: STRING
+                default-value: squid
+                name: application-name
+              - data-type: STRING
+                default-value: ''
+                name: url
+            - name: deleteurl
+              parameter:
+              - data-type: STRING
+                default-value: squid
+                name: application-name
+              - data-type: STRING
+                default-value: ''
+                name: url
+  ext-cpd:
+  - id: mgmt-ext
+    k8s-cluster-net: mgmtnet
+  - id: ingress-ext
+    k8s-cluster-net: datanet
+  - id: egress-ext
+    k8s-cluster-net: datanet
+  id: p4_switch_knf
+  k8s-cluster:
+    nets:
+    - id: mgmtnet
+    - id: data-net-1
+    - id: data-net-2
+  kdu:
+  - name: p4-switch-kdu
+    juju-bundle: bundle.yaml
+  mgmt-cp: mgmt-ext
+  product-name: p4_switch_knf
+  provider: MANTRA6G
+  version: 1.0

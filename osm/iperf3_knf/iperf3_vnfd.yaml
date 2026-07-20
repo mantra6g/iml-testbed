@@ -1,0 +1,16 @@
+vnfd:
+  id: iperf3_knf
+  product-name: iperf3_knf
+  version: "1.0"
+  description: "Containerized iperf3 endpoints"
+  mgmt-cp: mgmt-ext
+
+  kdu:
+  - name: iperf3-kdu
+    helm-chart: https://github.com/EugenMayer/helm-charts/releases/download/iperf3-0.2.2/iperf3-0.2.2.tgz
+
+  ext-cpd:
+  - id: mgmt-ext
+    k8s-cluster-net: mgmtnet
+  - id: data-ext
+    k8s-cluster-net: datanet   # Binds to whichever virtual link it is given
