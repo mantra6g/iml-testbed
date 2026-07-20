@@ -13,50 +13,55 @@ nsd:
     virtual-link-desc:
     - id: mgmtnet
       mgmt-network: true
-      vim-network-name: mgmt
-    - id: data-net
-      vim-network-name: data
+    # Split the data network into two distinct segments so the switch acts as the bridge
+    - id: clientnet
+    - id: servernet
 
     df:
     - id: default-df
       vnf-profile:
+      
+      # 1. CLIENT VNF
       - id: client
         vnfd-id: iperf3_knf
         virtual-link-connectivity:
         - virtual-link-profile-id: mgmtnet
           constituent-cpd-id:
-            - vnf-profile-id: client
-              cpd-id: mgmt-ext
-        - virtual-link-profile-id: link-client-to-switch
+          - constituent-base-element-id: client
+            constituent-cpd-id: mgmt-ext
+        - virtual-link-profile-id: clientnet
           constituent-cpd-id:
-            - vnf-profile-id: client
-              cpd-id: data-ext
+          - constituent-base-element-id: client
+            constituent-cpd-id: data-ext
 
-
+      # 2. P4 SWITCH VNF (BMv2)
       - id: p4-switch
         vnfd-id: p4_switch_knf
         virtual-link-connectivity:
-          - virtual-link-profile-id: mgmtnet
-            constituent-cpd-id:
-              - vnf-profile-id: p4-switch
-                cpd-id: mgmt-ext
-          - virtual-link-profile-id: link-client-to-switch
-            constituent-cpd-id:
-              - vnf-profile-id: p4-switch
-                cpd-id: ingress-ext
-          - virtual-link-profile-id: link-switch-to-server
-            constituent-cpd-id:
-              - vnf-profile-id: p4-switch
-                cpd-id: egress-ext
+        - virtual-link-profile-id: mgmtnet
+          constituent-cpd-id:
+          - constituent-base-element-id: p4-switch
+            constituent-cpd-id: mgmt-ext
+        # Ingress faces the client segment
+        - virtual-link-profile-id: clientnet
+          constituent-cpd-id:
+          - constituent-base-element-id: p4-switch
+            constituent-cpd-id: ingress-ext
+        # Egress faces the server segment
+        - virtual-link-profile-id: servernet
+          constituent-cpd-id:
+          - constituent-base-element-id: p4-switch
+            constituent-cpd-id: egress-ext
       
+      # 3. SERVER VNF
       - id: server
         vnfd-id: iperf3_knf
         virtual-link-connectivity:
-          - virtual-link-profile-id: mgmtnet
-            constituent-cpd-id:
-              - vnf-profile-id: server
-                cpd-id: mgmt-ext
-          - virtual-link-profile-id: link-switch-to-server
-            constituent-cpd-id:
-              - vnf-profile-id: server
-                cpd-id: data-ext
+        - virtual-link-profile-id: mgmtnet
+          constituent-cpd-id:
+          - constituent-base-element-id: server
+            constituent-cpd-id: mgmt-ext
+        - virtual-link-profile-id: servernet
+          constituent-cpd-id:
+          - constituent-base-element-id: server
+            constituent-cpd-id: data-ext

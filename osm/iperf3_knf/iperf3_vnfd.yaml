@@ -1,16 +1,47 @@
 vnfd:
   id: iperf3_knf
   product-name: iperf3_knf
-  version: "1.0"
+  version: 1.0
   description: "Containerized iperf3 endpoints"
-  mgmt-cp: mgmt-ext
+  provider: MANTRA6G
 
   kdu:
   - name: iperf3-kdu
     helm-chart: https://github.com/EugenMayer/helm-charts/releases/download/iperf3-0.2.2/iperf3-0.2.2.tgz
 
+  df:
+  - id: default-df
+    lcm-operations-configuration:
+      operate-vnf-op-config:
+        day1-2:
+          - id: p4-switch-kdu
+            config-primitive:
+            - name: addurl
+              parameter:
+              - data-type: STRING
+                default-value: squid
+                name: application-name
+              - data-type: STRING
+                default-value: ''
+                name: url
+            - name: deleteurl
+              parameter:
+              - data-type: STRING
+                default-value: squid
+                name: application-name
+              - data-type: STRING
+                default-value: ''
+                name: url
+
+  mgmt-cp: mgmt-ext
   ext-cpd:
   - id: mgmt-ext
     k8s-cluster-net: mgmtnet
   - id: data-ext
-    k8s-cluster-net: datanet   # Binds to whichever virtual link it is given
+    k8s-cluster-net: datanet
+
+  k8s-cluster:
+    nets:
+    - id: mgmtnet
+    - id: datanet
+
