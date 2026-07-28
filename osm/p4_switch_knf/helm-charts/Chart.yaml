@@ -1,0 +1,8 @@
+apiVersion: v2
+name: p4-switch
+description: >-
+  A P4-programmable BMv2 software switch (simple_switch), compiled and run
+  from p4lang's p4c container image.
+type: application
+version: 0.1.0
+appVersion: "1.2.5.15"

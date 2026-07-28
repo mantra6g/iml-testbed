@@ -1,0 +1,17 @@
+{{- if .Values.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "p4-switch.fullname" . }}
+  labels:
+    {{- include "p4-switch.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "p4-switch.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: thrift
+      port: {{ .Values.service.port }}
+      targetPort: thrift
+      protocol: TCP
+{{- end }}

@@ -1,0 +1,19 @@
+p4-switch deployed as {{ include "p4-switch.fullname" . }}.
+
+The switch container fetches the P4 program from:
+  {{ .Values.p4ProgramURL }}
+compiles it with p4c-bm2-ss, and starts simple_switch on Thrift port
+{{ .Values.thriftPort }} bound to:
+{{- range .Values.intfPairs }}
+  - {{ . }}
+{{- end }}
+
+{{- if .Values.tableEntriesURL }}
+Match-action table entries will be loaded from:
+  {{ .Values.tableEntriesURL }}
+{{- else }}
+No tableEntriesURL was set; the switch will boot with empty tables.
+{{- end }}
+
+Manage table entries live with:
+  kubectl exec -it deploy/{{ include "p4-switch.fullname" . }} -- simple_switch_CLI --thrift-port {{ .Values.thriftPort }}

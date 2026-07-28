@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "p4-switch.fullname" . }}-scripts
+  labels:
+    {{- include "p4-switch.labels" . | nindent 4 }}
+data:
+  entrypoint.sh: |
+    #!/bin/sh
+    # Compiles the configured P4 program and starts simple_switch, optionally
+    # loading match-action table entries once the switch is up.
+    set -eu
+
+    WORKDIR=/tmp/p4-switch
+    mkdir -p "${WORKDIR}"
+
+    if [ -z "${P4_PROGRAM_URL:-}" ]; then
+      echo "P4_PROGRAM_URL is not set; refusing to start with no program" >&2
+      exit 1
+    fi
+
+    echo "Fetching P4 program from ${P4_PROGRAM_URL}"
+    curl -fsSL "${P4_PROGRAM_URL}" -o "${WORKDIR}/switch.p4"
+
+    echo "Compiling P4 program with p4c-bm2-ss"
+    p4c-bm2-ss --p4v 16 "${WORKDIR}/switch.p4" -o "${WORKDIR}/switch.json"
+
+    IFACE_ARGS=""
+    for pair in ${INTF_PAIRS:-}; do
+      port="${pair%%,*}"
+      iface="${pair#*,}"
+      IFACE_ARGS="${IFACE_ARGS} -i ${port}@${iface}"
+    done
+
+    if [ -n "${TABLE_ENTRIES_URL:-}" ]; then
+      (
+        echo "Waiting for simple_switch to accept Thrift connections on port ${THRIFT_PORT}"
+        until printf 'help\n' | simple_switch_CLI --thrift-port "${THRIFT_PORT}" >/dev/null 2>&1; do
+          sleep 1
+        done
+
+        echo "Fetching table entries from ${TABLE_ENTRIES_URL}"
+        curl -fsSL "${TABLE_ENTRIES_URL}" -o "${WORKDIR}/table_entries.json"
+        python3 /scripts/load_table_entries.py "${WORKDIR}/table_entries.json" "${THRIFT_PORT}"
+      ) &
+    fi
+
+    echo "Starting simple_switch on thrift port ${THRIFT_PORT} with interfaces:${IFACE_ARGS}"
+    exec simple_switch --thrift-port "${THRIFT_PORT}" ${IFACE_ARGS} "${WORKDIR}/switch.json"
+
+  load_table_entries.py: |
+    #!/usr/bin/env python3
+    # Loads match-action table entries into a running simple_switch via
+    # simple_switch_CLI. Expects a JSON file containing a list of objects:
+    #
+    # [
+    #   {
+    #     "table": "ipv4_lpm",
+    #     "action": "ipv4_forward",
+    #     "match": ["10.0.0.0/24"],
+    #     "action_params": ["00:11:22:33:44:55", "1"],
+    #     "priority": 10
+    #   }
+    # ]
+    #
+    # "priority" is optional and only meaningful for ternary/range tables.
+    import json
+    import subprocess
+    import sys
+
+
+    def build_command(entry):
+        table = entry["table"]
+        action = entry["action"]
+        match = [str(m) for m in entry.get("match", [])]
+        action_params = [str(p) for p in entry.get("action_params", [])]
+        priority = entry.get("priority")
+
+        parts = ["table_add", table, action, *match, "=>", *action_params]
+        if priority is not None:
+            parts.append(str(priority))
+        return " ".join(parts)
+
+
+    def main():
+        entries_path, thrift_port = sys.argv[1], sys.argv[2]
+        with open(entries_path) as f:
+            entries = json.load(f)
+
+        commands = "\n".join(build_command(e) for e in entries)
+        if not commands:
+            print("no table entries to load")
+            return
+
+        result = subprocess.run(
+            ["simple_switch_CLI", "--thrift-port", thrift_port],
+            input=commands + "\n",
+            capture_output=True,
+            text=True,
+        )
+        print(result.stdout)
+        if result.returncode != 0:
+            print(result.stderr, file=sys.stderr)
+            sys.exit(1)
+
+
+    if __name__ == "__main__":
+        main()

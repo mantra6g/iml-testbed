@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "p4-switch.fullname" . }}
+  labels:
+    {{- include "p4-switch.labels" . | nindent 4 }}
+spec:
+  # A single BMv2 process holds all table state in memory; running more than
+  # one replica would give each pod an independently-programmed switch, not
+  # a scaled-out copy of the same one.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "p4-switch.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "p4-switch.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      containers:
+        - name: p4-switch
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "/scripts/entrypoint.sh"]
+          env:
+            - name: P4_PROGRAM_URL
+              value: {{ .Values.p4ProgramURL | quote }}
+            - name: TABLE_ENTRIES_URL
+              value: {{ .Values.tableEntriesURL | quote }}
+            - name: THRIFT_PORT
+              value: {{ .Values.thriftPort | quote }}
+            - name: INTF_PAIRS
+              value: {{ join " " .Values.intfPairs | quote }}
+          ports:
+            - name: thrift
+              containerPort: {{ .Values.thriftPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: scripts
+          configMap:
+            name: {{ include "p4-switch.fullname" . }}-scripts
+            defaultMode: 0755
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

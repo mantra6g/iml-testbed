@@ -1,0 +1,46 @@
+# Default values for the p4-switch chart.
+
+image:
+  # p4lang/p4c is built FROM p4lang/behavioral-model, so it ships both the
+  # p4c compiler (p4c-bm2-ss) and the BMv2 software switch (simple_switch,
+  # simple_switch_CLI). Pin the tag to an explicit release, never `latest`.
+  repository: p4lang/p4c
+  tag: "1.2.5.15"
+  pullPolicy: IfNotPresent
+
+# URL the P4_16 source program is downloaded from at container start.
+# Required: the container refuses to start simple_switch without a program.
+p4ProgramURL: ""
+
+# URL of a JSON document containing a list of match-action table entries to
+# load once simple_switch is up. Optional: leave empty to boot with no
+# entries pre-loaded. See README.md for the expected JSON shape.
+tableEntriesURL: ""
+
+# Data-plane interfaces simple_switch should bind to, as a list of
+# "<port_number>,<iface_name>" pairs. The iface names must already exist in
+# the pod's network namespace (e.g. attached via Multus) by the time
+# simple_switch starts.
+#
+# intfPairs:
+#   - "0,net1"
+#   - "1,net2"
+intfPairs: []
+
+# Thrift RPC port simple_switch/simple_switch_CLI communicate over.
+thriftPort: 9090
+
+service:
+  enabled: true
+  type: ClusterIP
+  port: 9090
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+podAnnotations: {}
