@@ -1,0 +1,58 @@
+---
+- name: Install k3s server
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | \
+    INSTALL_K3S_CHANNEL={{ k3s_channel }} \
+    K3S_KUBECONFIG_MODE=644 \
+    sh -s - server \
+      --cluster-cidr={{ pod_network_cidr }} \
+      --node-ip={{ ansible_default_ipv4.address }} \
+      --tls-san={{ ansible_host }}
+  args:
+    creates: /etc/systemd/system/k3s.service
+
+- name: Wait for the node-token to be created
+  ansible.builtin.wait_for:
+    path: /var/lib/rancher/k3s/server/node-token
+    timeout: 120
+
+- name: Wait for the kubeconfig to be created
+  ansible.builtin.wait_for:
+    path: /etc/rancher/k3s/k3s.yaml
+    timeout: 120
+
+- name: Wait for the API server to report ready
+  ansible.builtin.command: k3s kubectl get --raw=/readyz
+  register: k3s_ready
+  until: k3s_ready.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+
+- name: Read the node-token for worker join
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_node_token_b64
+
+- name: Persist the agent join script for worker nodes
+  ansible.builtin.copy:
+    content: |
+      #!/bin/bash
+      curl -sfL https://get.k3s.io | K3S_URL=https://{{ ansible_default_ipv4.address }}:6443 K3S_TOKEN={{ k3s_node_token_b64.content | b64decode | trim }} sh -
+    dest: "{{ playbook_dir }}/join-command.sh"
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+
+- name: Read the kubeconfig from the control-plane node
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/k3s.yaml
+  register: k3s_kubeconfig_b64
+
+- name: Write the kubeconfig to this machine with the control-plane's public IP
+  ansible.builtin.copy:
+    content: "{{ (k3s_kubeconfig_b64.content | b64decode) | regex_replace('https://127\\.0\\.0\\.1:6443', 'https://' + ansible_host + ':6443') }}"
+    dest: "{{ local_kubeconfig_path }}"
+    mode: '0600'
+  delegate_to: localhost
+  become: false

@@ -1,0 +1,11 @@
+---
+- name: Copy k3s agent join script to worker
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/join-command.sh"
+    dest: /tmp/join-command.sh
+    mode: '0700'
+
+- name: Join the cluster as a k3s agent
+  ansible.builtin.command: bash /tmp/join-command.sh
+  args:
+    creates: /etc/systemd/system/k3s-agent.service

@@ -7,7 +7,7 @@ vnfd:
 
   kdu:
   - name: iperf3-kdu
-    helm-chart: https://github.com/EugenMayer/helm-charts/releases/download/iperf3-0.2.2/iperf3-0.2.2.tgz
+    juju-bundle: ./juju-bundles/bundle.yaml
 
   df:
   - id: default-df
@@ -23,4 +23,3 @@ vnfd:
     nets:
     - id: mgmtnet
     - id: datanet
-

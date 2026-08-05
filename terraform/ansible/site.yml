@@ -1,0 +1,50 @@
+---
+- name: Install Kubernetes prerequisites and packages
+  hosts: all
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Wait for SSH to become available
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Wait for cloud-init to finish (releases the apt/dpkg lock it holds on boot)
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+    
+    - name: Disable background apt timers for the play duration
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+      loop:
+        - apt-daily.service
+        - apt-daily.timer
+        - apt-daily-upgrade.service
+        - apt-daily-upgrade.timer
+      failed_when: false
+
+    - name: Wait for existing dpkg/apt locks to be released
+      ansible.builtin.shell: |
+        while fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock >/dev/null 2>&1; do
+          sleep 5
+        done
+      changed_when: false
+      timeout: 300
+  roles:
+    - common
+
+- name: Initialize control-plane
+  hosts: control_plane
+  become: true
+  roles:
+    - control_plane
+
+- name: Join worker nodes to the cluster
+  hosts: workers
+  become: true
+  roles:
+    - worker
