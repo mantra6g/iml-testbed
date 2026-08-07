@@ -7,10 +7,27 @@ vnfd:
 
   kdu:
   - name: p4-switch-kdu
-    juju-bundle: bundle.yaml
+    helm-chart: oci://ghcr.io/tomasagata/helm/p4-switch:0.1.0
+    service:
+    - name: p4-switch
 
   df:
   - id: default-df
+    lcm-operations-configuration:
+        operate-vnf-op-config:
+          day1-2:
+            - id: p4-switch
+              execution-environment-list:
+              - id: p4-switch-ee
+                juju:
+                  charm: bmv2_amd64.charm
+              config-primitive:
+              - name: set-table-entries
+                execution-environment-ref: p4-switch-ee
+                parameter:
+                - name: entries_json
+                  data-type: STRING
+                  mandatory: true
   
   mgmt-cp: mgmt-ext
   ext-cpd:

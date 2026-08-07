@@ -2,5 +2,5 @@ description: BMv2 Programmer Bundle
 bundle: kubernetes
 applications:
   bmv2:
-    charm: "./charms/bmv2"
+    charm: "./charms/bmv2_amd64.charm"
     scale: 1
