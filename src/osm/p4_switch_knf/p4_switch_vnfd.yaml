@@ -33,14 +33,7 @@ vnfd:
   ext-cpd:
   - id: mgmt-ext
     k8s-cluster-net: mgmtnet
-  # Separated internal cluster networks for the P4 pipeline pipeline
-  - id: ingress-ext
-    k8s-cluster-net: ingressnet
-  - id: egress-ext
-    k8s-cluster-net: egressnet
 
   k8s-cluster:
     nets:
     - id: mgmtnet
-    - id: ingressnet
-    - id: egressnet
