@@ -3,38 +3,19 @@ nsd:
   - id: p4_iperf_scenario_ns
     name: p4_iperf_scenario_ns
     version: 1.0
-    description: "Topology: iperf3-client -> P4-Switch -> iperf3-server"
+    description: "Topology: NS with BMv2 switch"
     designer: MANTRA6G
     
     vnfd-id:
       - p4_switch_knf
-      - iperf3_knf
 
     virtual-link-desc:
     - id: mgmtnet
       mgmt-network: true
-    # Split the data network into two distinct segments so the switch acts as the bridge
-    - id: clientnet
-    - id: servernet
 
     df:
     - id: default-df
       vnf-profile:
-      
-      # 1. CLIENT VNF
-      - id: client
-        vnfd-id: iperf3_knf
-        virtual-link-connectivity:
-        - virtual-link-profile-id: mgmtnet
-          constituent-cpd-id:
-          - constituent-base-element-id: client
-            constituent-cpd-id: mgmt-ext
-        - virtual-link-profile-id: clientnet
-          constituent-cpd-id:
-          - constituent-base-element-id: client
-            constituent-cpd-id: data-ext
-
-      # 2. P4 SWITCH VNF (BMv2)
       - id: p4-switch
         vnfd-id: p4_switch_knf
         virtual-link-connectivity:
@@ -42,26 +23,3 @@ nsd:
           constituent-cpd-id:
           - constituent-base-element-id: p4-switch
             constituent-cpd-id: mgmt-ext
-        # Ingress faces the client segment
-        - virtual-link-profile-id: clientnet
-          constituent-cpd-id:
-          - constituent-base-element-id: p4-switch
-            constituent-cpd-id: ingress-ext
-        # Egress faces the server segment
-        - virtual-link-profile-id: servernet
-          constituent-cpd-id:
-          - constituent-base-element-id: p4-switch
-            constituent-cpd-id: egress-ext
-      
-      # 3. SERVER VNF
-      - id: server
-        vnfd-id: iperf3_knf
-        virtual-link-connectivity:
-        - virtual-link-profile-id: mgmtnet
-          constituent-cpd-id:
-          - constituent-base-element-id: server
-            constituent-cpd-id: mgmt-ext
-        - virtual-link-profile-id: servernet
-          constituent-cpd-id:
-          - constituent-base-element-id: server
-            constituent-cpd-id: data-ext
