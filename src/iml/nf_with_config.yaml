@@ -1,0 +1,13 @@
+apiVersion: core.loom.io/v1alpha1
+kind: NetworkFunction
+metadata:
+  name: pkt-logger
+  namespace: default
+  labels:
+    nf: logger
+spec:
+  p4File: "https://raw.githubusercontent.com/mantra6g/iml-testbed/refs/heads/main/src/p4/v2_logger.p4"
+  targetSelector:
+    p4target.loom.io/arch: v1model
+  configRef:
+    name: pkt-logger-config

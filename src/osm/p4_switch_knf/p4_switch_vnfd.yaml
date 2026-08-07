@@ -7,7 +7,7 @@ vnfd:
 
   kdu:
   - name: p4-switch-kdu
-    helm-chart: bundle.yaml
+    juju-bundle: bundle.yaml
 
   df:
   - id: default-df

@@ -7,7 +7,7 @@ vnfd:
 
   kdu:
   - name: iperf3-kdu
-    juju-bundle: ./juju-bundles/bundle.yaml
+    juju-bundle: bundle.yaml
 
   df:
   - id: default-df
