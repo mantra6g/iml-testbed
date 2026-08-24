@@ -1,10 +1,10 @@
 ---
-# Flannel ships with k3s by default (we never pass --flannel-backend=none),
-# so the only prerequisite left to check is that core-dns is actually up
+# Flannel is installed explicitly by the control_plane role before this role
+# runs, so the only prerequisite left to check is that core-dns is actually up
 # before we lean on in-cluster DNS/webhooks for cert-manager and IML.
 - name: Wait for CoreDNS to be ready
   ansible.builtin.command: >
-    k3s kubectl wait pods -n kube-system
+    kubectl wait pods -n kube-system
     -l k8s-app=kube-dns
     --for=condition=Ready
     --timeout=180s
@@ -14,14 +14,14 @@
 # which requires Multus as a meta-CNI layered on top of Flannel.
 - name: Install Multus CNI
   ansible.builtin.command: >
-    k3s kubectl apply -f
+    kubectl apply -f
     https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/{{ multus_version }}/deployments/multus-daemonset-thick.yml
   register: iml_multus_apply
   changed_when: "'unchanged' not in iml_multus_apply.stdout"
 
 - name: Wait for the Multus daemonset to be ready
   ansible.builtin.command: >
-    k3s kubectl rollout status daemonset/kube-multus-ds
+    kubectl rollout status daemonset/kube-multus-ds
     -n kube-system --timeout=180s
   changed_when: false
 
@@ -38,15 +38,11 @@
 
 - name: Add the Jetstack Helm repo (cert-manager)
   ansible.builtin.command: helm repo add jetstack https://charts.jetstack.io
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   register: iml_helm_repo_add
   changed_when: "'has been added' in iml_helm_repo_add.stdout"
 
 - name: Update Helm repos
   ansible.builtin.command: helm repo update
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   changed_when: false
 
 - name: Install cert-manager
@@ -56,14 +52,12 @@
     --create-namespace
     --version {{ cert_manager_version }}
     --set crds.enabled=true
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   register: iml_cert_manager_install
   changed_when: "'STATUS: deployed' in iml_cert_manager_install.stdout"
 
 - name: Wait for cert-manager deployments to be available
   ansible.builtin.command: >
-    k3s kubectl rollout status deployment/{{ item }}
+    kubectl rollout status deployment/{{ item }}
     -n cert-manager --timeout=180s
   loop:
     - cert-manager
@@ -75,7 +69,5 @@
   ansible.builtin.command: >
     helm upgrade --install {{ iml_release_name }} oci://ghcr.io/mantra6g/iml/charts/iml
     --version {{ iml_chart_version }}
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   register: iml_install
   changed_when: "'STATUS: deployed' in iml_install.stdout"

@@ -32,14 +32,14 @@ variable "worker_instance_type" {
   default     = "c7i-flex.large"
 }
 
-variable "k3s_channel" {
-  description = "k3s release channel to install (e.g. \"stable\", \"latest\", or a minor-version channel like \"v1.30\")"
+variable "kubernetes_version" {
+  description = "Kubernetes minor version to install via the pkgs.k8s.io apt repo (e.g. \"1.34\")"
   type        = string
-  default     = "stable"
+  default     = "1.34"
 }
 
 variable "pod_network_cidr" {
-  description = "Pod network CIDR passed to k3s as --cluster-cidr, used by the bundled Flannel CNI"
+  description = "Pod network CIDR passed to kubeadm as --pod-network-cidr, used by the Flannel CNI"
   type        = string
   default     = "10.244.0.0/16"
 }

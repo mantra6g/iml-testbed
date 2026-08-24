@@ -10,7 +10,7 @@ resource "local_file" "ansible_inventory" {
     control_plane_ip      = "${aws_instance.control_plane.public_ip}"
     worker_ip             = "${aws_instance.worker.public_ip}"
     private_key_path      = "${abspath(local_sensitive_file.private_key.filename)}"
-    k3s_channel           = "${var.k3s_channel}"
+    kubernetes_version    = "${var.kubernetes_version}"
     pod_network_cidr      = "${var.pod_network_cidr}"
     local_kubeconfig_path = "${abspath(local.local_kubeconfig_path)}"
   })

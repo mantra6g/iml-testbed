@@ -52,7 +52,7 @@ resource "aws_security_group_rule" "api_server" {
   description       = "Kubernetes API server"
 }
 
-# --- k3s API server: reachable from worker nodes joining the cluster ---
+# --- Kubernetes API server: reachable from worker nodes joining the cluster ---
 
 resource "aws_security_group_rule" "api_server_from_worker" {
   type                     = "ingress"

@@ -52,5 +52,7 @@
 - name: Install Helm, cert-manager and IML on the control-plane
   hosts: control_plane
   become: true
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
   roles:
     - iml
