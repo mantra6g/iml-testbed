@@ -48,3 +48,9 @@
   become: true
   roles:
     - worker
+
+- name: Install Helm, cert-manager and IML on the control-plane
+  hosts: control_plane
+  become: true
+  roles:
+    - iml

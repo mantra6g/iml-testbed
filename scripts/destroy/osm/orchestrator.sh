@@ -13,6 +13,22 @@ NSPKG_NAMES=("p4_iperf_scenario_ns")
 
 UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
+# OSM's list commands can report resources that are already gone (eventual
+# consistency / stale cache), so every delete below tolerates the delete
+# itself failing with "not found" rather than relying on the list check alone.
+delete_tolerant() {
+  local description="$1"
+  shift
+  if ! OUTPUT="$("$@" 2>&1)"; then
+    if echo "$OUTPUT" | grep -qi "not found"; then
+      echo "${description} already deleted, skipping."
+    else
+      echo "$OUTPUT" >&2
+      exit 1
+    fi
+  fi
+}
+
 echo "==> Looking for running NS instances..."
 mapfile -t NS_IDS < <(osm ns-list 2>/dev/null | grep -Eo "$UUID_RE" | sort -u)
 
@@ -21,7 +37,7 @@ if [ "${#NS_IDS[@]}" -eq 0 ]; then
 else
   for ns_id in "${NS_IDS[@]}"; do
     echo "==> Deleting NS instance '${ns_id}'..."
-    osm ns-delete "$ns_id"
+    delete_tolerant "NS instance '${ns_id}'" osm ns-delete "$ns_id"
   done
 
   echo "==> Waiting for NS instances to be fully deleted..."
@@ -39,36 +55,20 @@ fi
 
 echo "==> Deleting NS packages..."
 for nspkg in "${NSPKG_NAMES[@]}"; do
-  if osm nspkg-list 2>/dev/null | grep -q "$nspkg"; then
-    echo "==> Deleting NS package '${nspkg}'..."
-    osm nspkg-delete "$nspkg"
-  else
-    echo "NS package '${nspkg}' not found, skipping."
-  fi
+  echo "==> Deleting NS package '${nspkg}'..."
+  delete_tolerant "NS package '${nspkg}'" osm nspkg-delete "$nspkg"
 done
 
 echo "==> Deleting NF packages..."
 for nfpkg in "${NFPKG_NAMES[@]}"; do
-  if osm nfpkg-list 2>/dev/null | grep -q "$nfpkg"; then
-    echo "==> Deleting NF package '${nfpkg}'..."
-    osm nfpkg-delete "$nfpkg"
-  else
-    echo "NF package '${nfpkg}' not found, skipping."
-  fi
+  echo "==> Deleting NF package '${nfpkg}'..."
+  delete_tolerant "NF package '${nfpkg}'" osm nfpkg-delete "$nfpkg"
 done
 
 echo "==> Deleting k8s cluster '${CLUSTER_NAME}' from OSM..."
-if osm k8scluster-list 2>/dev/null | grep -q "$CLUSTER_NAME"; then
-  osm k8scluster-delete "$CLUSTER_NAME" --wait
-else
-  echo "k8s cluster '${CLUSTER_NAME}' not registered in OSM, skipping."
-fi
+delete_tolerant "k8s cluster '${CLUSTER_NAME}'" osm k8scluster-delete "$CLUSTER_NAME" --wait
 
 echo "==> Deleting VIM 'iml-testbed-vim' from OSM..."
-if osm vim-list 2>/dev/null | grep -q "iml-testbed-vim"; then
-  osm vim-delete iml-testbed-vim --wait
-else
-  echo "VIM 'iml-testbed-vim' not found, skipping."
-fi
+delete_tolerant "VIM 'iml-testbed-vim'" osm vim-delete iml-testbed-vim --wait
 
 echo "==> OSM cleanup complete."
