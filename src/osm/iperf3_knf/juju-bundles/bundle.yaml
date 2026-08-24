@@ -1,6 +1,0 @@
-description: iperf3 Bundle
-bundle: kubernetes
-applications:
-  iperf3:
-    charm: "./charms/iperf3"
-    scale: 1
