@@ -4,6 +4,7 @@ set -euo pipefail
 # ----------------------------------------------------------------------------
 # Configuration
 # ----------------------------------------------------------------------------
+REPO_URL="${1:?repo URL not provided}"
 RESOURCE_NAME="pkt-logger"
 POD_NAMESPACE="loom-system" # Namespace where the BMv2 target pod is running
 DRIVER_CONTAINER="bmv2-driver"
@@ -11,6 +12,7 @@ SWITCH_CONTAINER="bmv2-switch"
 WAIT_TIMEOUT="${WAIT_TIMEOUT:-120}" # seconds, used for both `kubectl wait` and log matching
 
 WORKDIR="$(mktemp -d)"
+REPO_DIR="${WORKDIR}/repo"
 DRIVER_LOG="${WORKDIR}/driver.log"
 SWITCH_LOG="${WORKDIR}/switch.log"
 LOG_PIDS=()
@@ -62,6 +64,13 @@ cleanup() {
     rm -rf "$WORKDIR"
 }
 trap cleanup EXIT
+
+# ----------------------------------------------------------------------------
+# 0. Clone the repo so the resource manifests referenced below (src/iml/...)
+#    are available locally, regardless of where this script is run from.
+# ----------------------------------------------------------------------------
+git clone "$REPO_URL" "$REPO_DIR"
+cd "$REPO_DIR"
 
 # ----------------------------------------------------------------------------
 # 1. Deploy the BMv2 target and wait for it to be ready

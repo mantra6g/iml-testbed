@@ -1,0 +1,9 @@
+[
+  {
+    "table": "MyIngress.log_table",
+    "action": "MyIngress.log",
+    "match": ["10.123.0.3"],
+    "action_params": [],
+    "priority": 10
+  }
+]
