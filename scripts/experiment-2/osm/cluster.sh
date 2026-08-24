@@ -1,3 +1,5 @@
+#!/bin/bash
+
 time {
   helm install p4sw-1 oci://ghcr.io/tomasagata/helm/p4-switch --version 0.1.0 \
     --set p4ProgramURL="https://raw.githubusercontent.com/mantra6g/iml/refs/heads/main/examples/simple/logger.p4" && \

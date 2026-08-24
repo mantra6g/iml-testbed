@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 # 1. Configuration
@@ -6,7 +6,7 @@ RESOURCE_NAME="pkt-logger"
 RESOURCE_TYPE="nf"     # Change to "pod" if monitoring the backing pod directly
 NAMESPACE="default"    # Set your targeted namespace if not default
 
-echo "==> Creating resource '${RESOURCE_NAME}' and starting timer..."
+echo "==> Creating NF and starting timer..."
 
 # Record start time in epoch nanoseconds
 START_TIME=$(date +%s%N)
