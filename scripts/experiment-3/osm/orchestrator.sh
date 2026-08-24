@@ -16,6 +16,8 @@ NS_NAME="exp3"
 NSD_NAME="p4_iperf_scenario_ns"
 VIM_ACCOUNT="iml-testbed-vim"
 P4_PROGRAM_URL="https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/p4/v2_logger.p4"
+KNF_NAME="p4-switch"
+KDU_NAME="p4-switch-kdu"
 
 UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 
@@ -25,44 +27,20 @@ NS_ID="$(osm ns-create \
     --ns_name "$NS_NAME" \
     --nsd_name "$NSD_NAME" \
     --vim_account "$VIM_ACCOUNT" \
-    --config "{ \
-        \"additionalParamsForVnf\": [{ \
-            \"member-vnf-index\": \"p4_switch_knf\", \
-            \"additionalParamsForKdu\": [{ \
-                \"kdu_name\": \"p4-switch-kdu\", \
-                \"additionalParams\": { \
-                    \"p4ProgramURL\": \"https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/p4/v2_logger.p4\", \
-                    \"tableEntriesURL\": \"https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/entries/v1.json\" \
-                } \
-            }] \
-        }] \
-    }"\
+    --config '{"additionalParamsForVnf": [{"member-vnf-index": "p4-switch","additionalParamsForKdu": [{"kdu_name": "p4-switch-kdu","additionalParams": {"p4ProgramURL": "https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/p4/v2_logger.p4","tableEntriesURL": "https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/entries/v1.json"}}]}]}'\
     --wait | grep -Eo "$UUID_RE" | tail -n1)"
 
 echo "==> Updating NS instance '${NS_NAME}' and starting timer..."
 
 START_TIME=$(date +%s%N)
 
-osm ns-update \
-  $NS_NAME \
-  --updatetype CHANGE_VNFPKG \
-  --config "{ \
-    changeVnfPackageData: [{ \
-        vnfInstanceId: xxx, \
-        vnfdId: yyy \
-    }], \
-    additionalParamsForVnf: [{ \
-        member-vnf-index: p4_switch_knf, \
-        additionalParamsForKdu: [{ \
-            kdu_name: p4-switch-kdu, \
-            additionalParams: { \
-                p4ProgramURL: https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/p4/v2_logger.p4, \
-                tableEntriesURL: https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/entries/v2.json \
-            } \
-        }] \
-    }] \
-  }"\
-  --wait | grep -Eo "$UUID_RE" | tail -n1"
+osm ns-action \
+  "$NS_NAME" \
+  --vnf_name "$KNF_NAME" \
+  --kdu_name "$KDU_NAME" \
+  --action_name upgrade \
+  --params '{"p4ProgramURL": "https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/p4/v2_logger.p4", "tableEntriesURL": "https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/entries/v2.json"}' \
+  --wait
 
 END_TIME=$(date +%s%N)
 

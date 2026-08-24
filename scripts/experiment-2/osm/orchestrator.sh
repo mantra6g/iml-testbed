@@ -27,18 +27,7 @@ NS_ID="$(osm ns-create \
     --ns_name "$NS_NAME" \
     --nsd_name "$NSD_NAME" \
     --vim_account "$VIM_ACCOUNT" \
-    --config "{ \
-        \"additionalParamsForVnf\": [{ \
-            \"member-vnf-index\": \"p4_switch_knf\", \
-            \"additionalParamsForKdu\": [{ \
-                \"kdu_name\": \"p4-switch-kdu\", \
-                \"additionalParams\": { \
-                    \"p4ProgramURL\": \"https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/p4/v2_logger.p4\", \
-                    \"tableEntriesURL\": \"https://raw.githubusercontent.com/mantra6g/iml-testbed/main/scripts/experiment-2/osm/table_entries.json\" \
-                } \
-            }] \
-        }] \
-    }"\
+    --config '{"additionalParamsForVnf": [{"member-vnf-index": "p4-switch","additionalParamsForKdu": [{"kdu_name": "p4-switch-kdu","additionalParams": {"p4ProgramURL": "https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/p4/v2_logger.p4","tableEntriesURL": "https://raw.githubusercontent.com/mantra6g/iml-testbed/main/src/entries/v1.json"}}]}]}'\
     --wait | grep -Eo "$UUID_RE" | tail -n1)"
 
 END_TIME=$(date +%s%N)

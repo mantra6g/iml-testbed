@@ -14,6 +14,27 @@ TERRAFORM_DIR="$(cd "${SCRIPT_DIR}/../../terraform" && pwd)"
 : "${OSM_HOST_USER:?OSM_HOST_USER is not set. Did you fill in .env?}"
 : "${REPO_URL:?REPO_URL is not set. Did you fill in .env?}"
 
+IML_LOG="$(mktemp)"
+OSM_LOG="$(mktemp)"
+trap 'rm -f "$IML_LOG" "$OSM_LOG"' EXIT
+
+# cluster.sh and orchestrator.sh each time themselves precisely (nanosecond
+# `date`, on the remote Linux host) and print a trailing "(<N> ms)" on their
+# own elapsed-time line. Extracting that instead of timing the SSH round
+# trip locally avoids attributing SSH connection setup, git clone, etc. to
+# the deployment time, and sidesteps the fact that this may run on macOS,
+# where `date` doesn't support nanosecond precision at all.
+extract_elapsed_ms() {
+  local log_file="$1"
+  local ms
+  ms="$(grep -oE '\([0-9]+ ms\)' "$log_file" | tail -n1 | grep -oE '[0-9]+' || true)"
+  if [ -z "$ms" ]; then
+    echo "Error: could not find an elapsed-time line '(<N> ms)' in the output captured in ${log_file}." >&2
+    exit 1
+  fi
+  echo "$ms"
+}
+
 echo "==> Reading control-plane connection details from Terraform..."
 if ! CONTROL_PLANE_IP="$(terraform -chdir="${TERRAFORM_DIR}" output -raw control_plane_public_ip 2>/dev/null)"; then
   echo "Error: could not read 'control_plane_public_ip' from Terraform output." >&2
@@ -25,22 +46,18 @@ if ! SSH_PRIVATE_KEY_PATH="$(terraform -chdir="${TERRAFORM_DIR}" output -raw ssh
 fi
 
 echo "==> Running the IML experiment on the control-plane node..."
-IML_START=$(date +%s%N)
-if ! ssh -i "${SSH_PRIVATE_KEY_PATH}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "ubuntu@${CONTROL_PLANE_IP}" bash -s -- "${REPO_URL}" < "${SCRIPT_DIR}/iml/cluster.sh"; then
+if ! ssh -i "${SSH_PRIVATE_KEY_PATH}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "ubuntu@${CONTROL_PLANE_IP}" bash -s -- "${REPO_URL}" < "${SCRIPT_DIR}/iml/cluster.sh" | tee "$IML_LOG"; then
   echo "Error: the IML experiment failed. See the output above for details." >&2
   exit 1
 fi
-IML_END=$(date +%s%N)
-IML_ELAPSED_MS=$(( (IML_END - IML_START) / 1000000 ))
+IML_ELAPSED_MS="$(extract_elapsed_ms "$IML_LOG")"
 
 echo "==> Running the OSM experiment on ${OSM_HOST}..."
-OSM_START=$(date +%s%N)
-if ! ssh "${OSM_HOST_USER}@${OSM_HOST}" bash -l -s -- < "${SCRIPT_DIR}/osm/orchestrator.sh"; then
+if ! ssh "${OSM_HOST_USER}@${OSM_HOST}" bash -l -s -- < "${SCRIPT_DIR}/osm/orchestrator.sh" | tee "$OSM_LOG"; then
   echo "Error: the OSM experiment failed. See the output above for details." >&2
   exit 1
 fi
-OSM_END=$(date +%s%N)
-OSM_ELAPSED_MS=$(( (OSM_END - OSM_START) / 1000000 ))
+OSM_ELAPSED_MS="$(extract_elapsed_ms "$OSM_LOG")"
 
 TOTAL_ELAPSED_MS=$(( IML_ELAPSED_MS + OSM_ELAPSED_MS ))
 
