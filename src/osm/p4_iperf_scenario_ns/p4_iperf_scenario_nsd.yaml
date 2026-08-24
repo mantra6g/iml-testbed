@@ -2,7 +2,7 @@ nsd:
   nsd:
   - id: p4_iperf_scenario_ns
     name: p4_iperf_scenario_ns
-    version: 1.0
+    version: "1.0"
     description: "Topology: NS with BMv2 switch"
     designer: MANTRA6G
     
