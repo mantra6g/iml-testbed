@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Runs the full experiment-2 comparison: first the IML experiment
 # (iml/cluster.sh, run over SSH on the control-plane node so it talks to
-# the in-cluster IML CRD directly), then the OSM experiment
-# (osm/orchestrator.sh, run over SSH on the OSM host). Reports how long
-# each stage took.
+# the in-cluster IML CRD directly), then the OSM experiment. The OSM side
+# is split into SSH stages on OSM_HOST: "create" provisions the NS and
+# times how long OSM itself takes to instantiate it, then "delete" tears
+# it back down. Reports how long each stage took.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERRAFORM_DIR="$(cd "${SCRIPT_DIR}/../../terraform" && pwd)"
@@ -18,21 +19,45 @@ IML_LOG="$(mktemp)"
 OSM_LOG="$(mktemp)"
 trap 'rm -f "$IML_LOG" "$OSM_LOG"' EXIT
 
-# cluster.sh and orchestrator.sh each time themselves precisely (nanosecond
-# `date`, on the remote Linux host) and print a trailing "(<N> ms)" on their
-# own elapsed-time line. Extracting that instead of timing the SSH round
-# trip locally avoids attributing SSH connection setup, git clone, etc. to
-# the deployment time, and sidesteps the fact that this may run on macOS,
-# where `date` doesn't support nanosecond precision at all.
+# iml/cluster.sh and osm/orchestrator.sh each time themselves precisely
+# (nanosecond `date`, on their own remote Linux host) and print a trailing
+# "(<N> ms)" on their own elapsed-time line, which is always the first such
+# line in the log -- orchestrator.sh's create phase also prints a per-stage
+# timing breakdown afterward, whose "(<N> ms)" lines must be ignored here,
+# hence `head -n1` rather than `tail -n1`. Extracting that instead of
+# timing the SSH round trip locally avoids attributing SSH connection
+# setup, git clone, etc. to the deployment time, and sidesteps the fact
+# that this may run on macOS, where `date` doesn't support nanosecond
+# precision at all.
 extract_elapsed_ms() {
   local log_file="$1"
   local ms
-  ms="$(grep -oE '\([0-9]+ ms\)' "$log_file" | tail -n1 | grep -oE '[0-9]+' || true)"
+  ms="$(grep -oE '\([0-9]+ ms\)' "$log_file" | head -n1 | grep -oE '[0-9]+' || true)"
   if [ -z "$ms" ]; then
     echo "Error: could not find an elapsed-time line '(<N> ms)' in the output captured in ${log_file}." >&2
     exit 1
   fi
   echo "$ms"
+}
+
+extract_ns_id() {
+  local log_file="$1"
+  local ns_id
+  ns_id="$(grep -oE 'NS_ID: [0-9a-fA-F-]+' "$log_file" | tail -n1 | cut -d' ' -f2)"
+  if [ -z "$ns_id" ]; then
+    echo "Error: could not find a 'NS_ID: <uuid>' line in the output captured in ${log_file}." >&2
+    exit 1
+  fi
+  echo "$ns_id"
+}
+
+delete_ns() {
+  local ns_id="$1"
+  echo "==> Deleting NS instance on ${OSM_HOST}..."
+  if ! "${OSM_HOST_SSH[@]}" delete "$ns_id" < "${SCRIPT_DIR}/osm/orchestrator.sh"; then
+    echo "Error: could not delete NS instance '${ns_id}'. Clean it up manually with 'osm ns-delete ${ns_id} --wait'." >&2
+    return 1
+  fi
 }
 
 echo "==> Reading control-plane connection details from Terraform..."
@@ -45,25 +70,30 @@ if ! SSH_PRIVATE_KEY_PATH="$(terraform -chdir="${TERRAFORM_DIR}" output -raw ssh
   exit 1
 fi
 
+CONTROL_PLANE_SSH=(ssh -i "${SSH_PRIVATE_KEY_PATH}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "ubuntu@${CONTROL_PLANE_IP}")
+OSM_HOST_SSH=(ssh "${OSM_HOST_USER}@${OSM_HOST}" bash -l -s --)
+
 echo "==> Running the IML experiment on the control-plane node..."
-if ! ssh -i "${SSH_PRIVATE_KEY_PATH}" -o BatchMode=yes -o StrictHostKeyChecking=accept-new "ubuntu@${CONTROL_PLANE_IP}" bash -s -- "${REPO_URL}" < "${SCRIPT_DIR}/iml/cluster.sh" | tee "$IML_LOG"; then
+if ! "${CONTROL_PLANE_SSH[@]}" bash -s -- "${REPO_URL}" < "${SCRIPT_DIR}/iml/cluster.sh" | tee "$IML_LOG"; then
   echo "Error: the IML experiment failed. See the output above for details." >&2
   exit 1
 fi
 IML_ELAPSED_MS="$(extract_elapsed_ms "$IML_LOG")"
 
-echo "==> Running the OSM experiment on ${OSM_HOST}..."
-if ! ssh "${OSM_HOST_USER}@${OSM_HOST}" bash -l -s -- < "${SCRIPT_DIR}/osm/orchestrator.sh" | tee "$OSM_LOG"; then
-  echo "Error: the OSM experiment failed. See the output above for details." >&2
+echo "==> Creating the NS on ${OSM_HOST}..."
+if ! "${OSM_HOST_SSH[@]}" create < "${SCRIPT_DIR}/osm/orchestrator.sh" | tee "$OSM_LOG"; then
+  echo "Error: the OSM 'create' stage failed. See the output above for details." >&2
   exit 1
 fi
+NS_ID="$(extract_ns_id "$OSM_LOG")"
 OSM_ELAPSED_MS="$(extract_elapsed_ms "$OSM_LOG")"
 
-TOTAL_ELAPSED_MS=$(( IML_ELAPSED_MS + OSM_ELAPSED_MS ))
+if ! delete_ns "$NS_ID"; then
+  exit 1
+fi
 
 echo "--------------------------------------------------"
 echo "Experiment-2 timing results:"
-echo "IML experiment time:   $(awk "BEGIN { printf \"%.3f\", ${IML_ELAPSED_MS} / 1000 }") seconds (${IML_ELAPSED_MS} ms)"
-echo "OSM experiment time:   $(awk "BEGIN { printf \"%.3f\", ${OSM_ELAPSED_MS} / 1000 }") seconds (${OSM_ELAPSED_MS} ms)"
-echo "Total time:            $(awk "BEGIN { printf \"%.3f\", ${TOTAL_ELAPSED_MS} / 1000 }") seconds (${TOTAL_ELAPSED_MS} ms)"
+echo "IML experiment time:          $(awk "BEGIN { printf \"%.3f\", ${IML_ELAPSED_MS} / 1000 }") seconds (${IML_ELAPSED_MS} ms)"
+echo "OSM experiment time:          $(awk "BEGIN { printf \"%.3f\", ${OSM_ELAPSED_MS} / 1000 }") seconds (${OSM_ELAPSED_MS} ms)"
 echo "--------------------------------------------------"

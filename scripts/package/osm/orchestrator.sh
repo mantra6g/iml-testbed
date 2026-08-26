@@ -15,5 +15,8 @@ cd "$TMP_DIR"
 osm package-build src/osm/p4_switch_knf
 osm package-build src/osm/p4_iperf_scenario_ns
 
+osm nspkg-delete p4_iperf_scenario_ns > /dev/null 2>&1 || true
+osm nfpkg-delete p4_switch_knf > /dev/null 2>&1 || true
+
 osm nfpkg-create src/osm/p4_switch_knf.tar.gz
 osm nspkg-create src/osm/p4_iperf_scenario_ns.tar.gz
